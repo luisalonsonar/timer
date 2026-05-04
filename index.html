@@ -112,6 +112,9 @@
     text-transform: uppercase;
     justify-content: center;
     width: 100%;
+    height: 28px;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .dot {
@@ -137,7 +140,6 @@
   }
 
   .blink-bar  { animation: blink-bar 1.8s ease-in-out infinite !important; }
-  .blink-clock { animation: blink-text 1.8s ease-in-out infinite; }
 
   @keyframes blink-bar {
     0%, 100% { opacity: 1; }
@@ -166,7 +168,8 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
-  .time-display.danger { color: var(--danger); }
+  .time-display.danger       { color: var(--danger); }
+  .time-display.overtime-red { color: var(--danger); }
 
   /* ══════════════════════════════
      PROGRESS
@@ -178,12 +181,12 @@
     height: 14px;
     background: var(--surface2);
     border-radius: 999px;
-    overflow: hidden;
     cursor: pointer;
     position: relative;
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+    clip-path: inset(0 round 999px);
   }
   .progress-track:hover { filter: brightness(1.2); }
   .progress-fill {
@@ -193,6 +196,8 @@
     width: 0%;
     transition: width 1s linear, background 0.4s;
     pointer-events: none;
+    position: relative;
+    z-index: 0;
   }
   .progress-fill.scrubbing { transition: background 0.4s; }
 
@@ -444,8 +449,8 @@
     progress.style.width = '100%';
     progress.style.background = '#E24B4A';
     progress.classList.add('blink-bar');
-    display.classList.remove('danger');
-    display.classList.add('blink-clock');
+    display.classList.remove('danger','blink-clock','overtime-red');
+    display.style.color = '#E24B4A';
     alertBanner.style.display = 'none';
     setStatus('wrap');
     btnStart.textContent = 'Iniciar';
@@ -454,6 +459,7 @@
     interval = setInterval(() => {
       overtimeSeconds++;
       display.textContent = '-' + fmt(overtimeSeconds);
+      display.style.color = '#E24B4A'; // keep red on every tick
       if (overtimeSeconds >= OVERTIME_MAX) {
         clearInterval(interval); interval = null;
       }
@@ -463,7 +469,8 @@
   function clearOvertime() {
     overtime = false; overtimeSeconds = 0;
     progress.classList.remove('blink-bar');
-    display.classList.remove('blink-clock');
+    display.classList.remove('blink-clock','overtime-red');
+    display.style.color = '';
     progress.style.background = 'var(--green)';
   }
 
@@ -494,7 +501,8 @@
     clearOvertime();
     const mins=parseInt(durInput.value)||30;
     totalSeconds=mins*60; remaining=totalSeconds; warned=false;
-    display.classList.remove('danger','blink-clock');
+    display.classList.remove('danger','blink-clock','overtime-red');
+    display.style.color = '';
     progress.style.background='var(--green)'; progress.style.width='0%';
     btnStart.textContent='Iniciar'; btnStart.classList.add('primary');
     setStatus('idle'); alertBanner.style.display='none'; updateDisplay();
@@ -506,7 +514,8 @@
     if (!running) {
       clearOvertime();
       totalSeconds=mins*60; remaining=totalSeconds; warned=false;
-      display.classList.remove('danger','blink-clock');
+      display.classList.remove('danger','blink-clock','overtime-red');
+      display.style.color = '';
       progress.style.background='var(--green)'; progress.style.width='0%';
       alertBanner.style.display='none'; updateDisplay();
     }
