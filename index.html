@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Podcast Timer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=DM+Sans:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0B2545;
+    --surface:  #122f5c;
+    --surface2: #163872;
+    --border:   rgba(255,255,255,0.10);
+    --text:     #ffffff;
+    --muted:    rgba(255,255,255,0.50);
+    --hint:     rgba(255,255,255,0.18);
+    --green:    #2ECC8A;
+    --green-dim:#1a7a53;
+    --danger:   #E24B4A;
+    --amber:    #EF9F27;
+    --radius:   12px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 1.5rem 1.25rem;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* ══════════════════════════════
+     LANDSCAPE — gap fijo moderado
+  ══════════════════════════════ */
+  @media (orientation: landscape) {
+    body { padding: 0; align-items: center; justify-content: center; }
+
+    .wrap {
+      max-width: 100%; width: 100%;
+      height: 100dvh;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 0 6vw;
+      gap: 3vh;
+    }
+
+    .time-display {
+      font-size: 28vh !important;
+      letter-spacing: -1px !important;
+      line-height: 1 !important;
+    }
+
+    .progress-track { height: 10px; }
+
+    .controls-row {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr 1fr 1fr !important;
+      gap: 10px;
+    }
+
+    .btn-main  { padding: 11px 0 !important; font-size: 15px !important; }
+    .btn-reset { padding: 11px 0 !important; font-size: 14px !important; }
+    .settings-toggle { padding: 10px 14px !important; }
+
+    .settings-panel.open { max-height: 130px; }
+    .settings-inner { padding: 0.7rem 0 0; }
+    .segments { margin-bottom: 0.55rem; }
+    .seg-btn  { padding: 4px 12px !important; font-size: 11px !important; }
+    .presets-label { margin-bottom: 5px; }
+  }
+
+  /* ══════════════════════════════
+     CLOCK
+  ══════════════════════════════ */
+  .clock-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .time-display {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    font-size: clamp(80px, 26vw, 120px);
+    letter-spacing: -1px;
+    color: var(--text);
+    line-height: 1;
+    text-align: center;
+    width: 100%;
+    transition: color 0.4s;
+  }
+  .time-display.danger { color: var(--danger); }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    transition: background 0.3s;
+    flex-shrink: 0;
+  }
+  .dot.running { background: var(--danger); animation: pulse 1.5s infinite; }
+  .dot.paused  { background: var(--amber); }
+
+  #status-text         { color: var(--green); transition: color 0.25s; font-weight: 500; }
+  #status-text.running { color: var(--danger); }
+  #status-text.paused  { color: var(--amber); }
+
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(226,75,74,0.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(226,75,74,0);   }
+    100% { box-shadow: 0 0 0 0   rgba(226,75,74,0);   }
+  }
+
+  /* ══════════════════════════════
+     PROGRESS
+  ══════════════════════════════ */
+  .mid-block { width: 100%; }
+
+  .progress-track {
+    width: 100%;
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--green);
+    width: 0%;
+    transition: width 1s linear, background 0.4s;
+  }
+
+  .alert-banner {
+    display: none;
+    width: 100%;
+    background: rgba(226,75,74,0.15);
+    color: #ff8080;
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: var(--radius);
+    text-align: center;
+    border: 0.5px solid rgba(226,75,74,0.35);
+    letter-spacing: 0.03em;
+    margin-top: 0.6rem;
+  }
+
+  /* ══════════════════════════════
+     CONTROLS
+  ══════════════════════════════ */
+  .bottom-block {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .controls-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
+  button {
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.1s, background 0.15s;
+  }
+  button:active { transform: scale(0.97); }
+
+  .btn-main {
+    padding: 14px 0;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .btn-main.primary {
+    background: var(--green);
+    color: #0B2545;
+    border-color: var(--green);
+  }
+
+  .btn-reset {
+    padding: 13px 0;
+    font-size: 14px;
+    border-radius: var(--radius);
+    background: transparent;
+    border: 0.5px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-reset:hover { background: var(--surface); color: var(--text); }
+
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    width: 100%;
+  }
+  .settings-toggle:hover { background: var(--surface); color: var(--text); }
+
+  .arrow { font-size: 10px; transition: transform 0.25s; display: inline-block; }
+  .arrow.open { transform: rotate(180deg); }
+
+  .settings-panel {
+    width: 100%;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.2s;
+  }
+  .settings-panel.open { max-height: 220px; opacity: 1; }
+
+  .settings-inner {
+    padding: 1rem 0 0.25rem;
+    border-top: 0.5px solid var(--border);
+    margin-top: 10px;
+  }
+
+  .presets-label {
+    font-size: 11px;
+    color: var(--hint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .segments { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .seg-btn {
+    font-size: 12px; padding: 6px 14px;
+    border-radius: 999px;
+    border: 0.5px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  .seg-btn.active, .seg-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--green-dim); }
+
+  .custom-row { display: flex; align-items: center; gap: 10px; }
+  .custom-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .custom-row input[type=number] {
+    width: 70px; padding: 8px 10px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: 'DM Mono', monospace;
+    font-size: 15px; text-align: center; -moz-appearance: textfield;
+  }
+  .custom-row input::-webkit-inner-spin-button,
+  .custom-row input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .custom-row input:focus { outline: none; border-color: var(--green-dim); }
+  .unit { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="clock-block">
+    <div class="time-display" id="display">00:00</div>
+    <div class="status-row">
+      <span class="dot" id="dot"></span>
+      <span id="status-text">Listos para grabar</span>
+    </div>
+  </div>
+
+  <div class="mid-block">
+    <div class="progress-track">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+    <div id="alert-banner" class="alert-banner">Último minuto</div>
+  </div>
+
+  <div class="bottom-block">
+    <div class="controls-row">
+      <button class="btn-main primary" id="btn-start" onclick="toggleTimer()">Iniciar</button>
+      <button class="btn-main" onclick="pauseTimer()">Pausa</button>
+      <button class="btn-reset" onclick="resetTimer()">↺ Resetear</button>
+      <button class="settings-toggle" onclick="toggleSettings()">
+        <span>Ajustes</span>
+        <span class="arrow" id="arrow">▲</span>
+      </button>
+    </div>
+    <div class="settings-panel" id="settings-panel">
+      <div class="settings-inner">
+        <div class="presets-label">Presets</div>
+        <div class="segments">
+          <button class="seg-btn" onclick="setDuration(5)">5 min</button>
+          <button class="seg-btn" onclick="setDuration(10)">10 min</button>
+          <button class="seg-btn" onclick="setDuration(20)">20 min</button>
+          <button class="seg-btn active" onclick="setDuration(30)">30 min</button>
+          <button class="seg-btn" onclick="setDuration(45)">45 min</button>
+          <button class="seg-btn" onclick="setDuration(60)">60 min</button>
+        </div>
+        <div class="custom-row">
+          <label for="dur-input">Personalizado:</label>
+          <input type="number" id="dur-input" min="1" max="180" value="30" />
+          <span class="unit">min</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+  let totalSeconds=30*60, remaining=totalSeconds;
+  let interval=null, running=false, warned=false, settingsOpen=false;
+
+  const display     = document.getElementById('display');
+  const progress    = document.getElementById('progress');
+  const dot         = document.getElementById('dot');
+  const statusText  = document.getElementById('status-text');
+  const alertBanner = document.getElementById('alert-banner');
+  const durInput    = document.getElementById('dur-input');
+  const btnStart    = document.getElementById('btn-start');
+  const panel       = document.getElementById('settings-panel');
+  const arrow       = document.getElementById('arrow');
+
+  function fmt(s) {
+    const m=Math.floor(s/60), ss=s%60;
+    return (m<10?'0':'')+m+':'+(ss<10?'0':'')+ss;
+  }
+
+  function setStatus(state) {
+    const labels = { idle:'Listos para grabar', running:'Grabando', paused:'Pausado', done:'Tiempo agotado' };
+    statusText.textContent = labels[state];
+    statusText.className   = state==='running' ? 'running' : state==='paused' ? 'paused' : '';
+    dot.className          = 'dot'+(state==='running' ? ' running' : state==='paused' ? ' paused' : '');
+  }
+
+  function updateDisplay() {
+    display.textContent = fmt(remaining);
+    const pct = totalSeconds>0 ? ((totalSeconds-remaining)/totalSeconds)*100 : 0;
+    progress.style.width = pct+'%';
+
+    if (remaining<=60 && remaining>0) {
+      progress.style.background='#E24B4A'; display.classList.add('danger');
+      if (!warned) { alertBanner.style.display='block'; warned=true; }
+    } else if (remaining<=180) {
+      progress.style.background='#EF9F27'; display.classList.remove('danger');
+      alertBanner.style.display='none';
+    } else {
+      progress.style.background='var(--green)'; display.classList.remove('danger');
+      alertBanner.style.display='none';
+    }
+
+    if (remaining===0) {
+      clearInterval(interval); interval=null; running=false;
+      btnStart.textContent='Iniciar'; btnStart.classList.add('primary');
+      setStatus('done'); progress.style.width='100%';
+    }
+  }
+
+  function toggleTimer() {
+    if (running) {
+      clearInterval(interval); interval=null; running=false;
+      btnStart.textContent='Continuar'; btnStart.classList.add('primary');
+      setStatus('paused');
+    } else {
+      if (remaining<=0) return;
+      running=true;
+      btnStart.textContent='Pausar'; btnStart.classList.remove('primary');
+      setStatus('running');
+      interval=setInterval(()=>{ if(remaining>0){remaining--;updateDisplay();} },1000);
+    }
+  }
+
+  function pauseTimer() {
+    if (!running) return;
+    clearInterval(interval); interval=null; running=false;
+    btnStart.textContent='Continuar'; btnStart.classList.add('primary');
+    setStatus('paused');
+  }
+
+  function resetTimer() {
+    clearInterval(interval); interval=null; running=false;
+    const mins=parseInt(durInput.value)||30;
+    totalSeconds=mins*60; remaining=totalSeconds; warned=false;
+    display.classList.remove('danger');
+    progress.style.background='var(--green)'; progress.style.width='0%';
+    btnStart.textContent='Iniciar'; btnStart.classList.add('primary');
+    setStatus('idle'); alertBanner.style.display='none'; updateDisplay();
+  }
+
+  function setDuration(mins) {
+    durInput.value=mins;
+    document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',parseInt(b.textContent)===mins));
+    if (!running) {
+      totalSeconds=mins*60; remaining=totalSeconds; warned=false;
+      display.classList.remove('danger');
+      progress.style.background='var(--green)'; progress.style.width='0%';
+      alertBanner.style.display='none'; updateDisplay();
+    }
+  }
+
+  function toggleSettings() {
+    settingsOpen=!settingsOpen;
+    panel.classList.toggle('open',settingsOpen);
+    arrow.classList.toggle('open',settingsOpen);
+  }
+
+  durInput.addEventListener('change',()=>{
+    if (!running) {
+      const mins=parseInt(durInput.value)||30;
+      totalSeconds=mins*60; remaining=totalSeconds; warned=false;
+      progress.style.width='0%'; alertBanner.style.display='none';
+      document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+      updateDisplay();
+    }
+  });
+
+  updateDisplay();
+</script>
+</body>
+</html>
