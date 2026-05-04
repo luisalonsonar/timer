@@ -40,16 +40,19 @@
     align-items: center;
     justify-content: center;
     min-height: 100dvh;
-    padding: 1.5rem 1.25rem;
+    padding: 0;
   }
 
   .wrap {
     width: 100%;
     max-width: 560px;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    justify-content: center;
+    gap: 0;
+    padding: 5vh 6vw;
   }
 
   /* ══════════════════════════════
@@ -158,7 +161,7 @@
   .time-display {
     font-family: 'Bebas Neue', sans-serif;
     font-weight: 400;
-    font-size: clamp(100px, 34vw, 160px);
+    font-size: clamp(100px, 22vh, 200px);
     letter-spacing: -1px;
     color: var(--text);
     line-height: 1;
@@ -167,6 +170,7 @@
     transition: color 0.4s;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
+    margin: 2vh 0 3vh;
   }
   .time-display.danger       { color: var(--danger); }
   .time-display.overtime-red { color: var(--danger); }
@@ -174,7 +178,7 @@
   /* ══════════════════════════════
      PROGRESS
   ══════════════════════════════ */
-  .mid-block { width: 100%; }
+  .mid-block { width: 100%; margin-bottom: 3vh; }
 
   .progress-track {
     width: 100%;
