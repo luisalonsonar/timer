@@ -127,6 +127,22 @@
   #status-text         { color: var(--green); transition: color 0.25s; }
   #status-text.running { color: var(--danger); }
   #status-text.paused  { color: var(--amber); }
+  #status-text.wrap    { color: var(--danger); animation: blink-text 1.8s ease-in-out infinite; }
+
+  .dot.wrap-dot { background: var(--danger); animation: blink-text 1.8s ease-in-out infinite; }
+
+  @keyframes blink-text {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.15; }
+  }
+
+  .blink-bar  { animation: blink-bar 1.8s ease-in-out infinite !important; }
+  .blink-clock { animation: blink-text 1.8s ease-in-out infinite; }
+
+  @keyframes blink-bar {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+  }
 
   @keyframes pulse {
     0%   { box-shadow: 0 0 0 0   rgba(226,75,74,0.5); }
@@ -163,14 +179,22 @@
     background: var(--surface2);
     border-radius: 999px;
     overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
+  .progress-track:hover { filter: brightness(1.2); }
   .progress-fill {
     height: 100%;
     border-radius: 999px;
     background: var(--green);
     width: 0%;
     transition: width 1s linear, background 0.4s;
+    pointer-events: none;
   }
+  .progress-fill.scrubbing { transition: background 0.4s; }
 
   .alert-banner {
     display: none;
@@ -354,6 +378,8 @@
 <script>
   let totalSeconds=30*60, remaining=totalSeconds;
   let interval=null, running=false, warned=false, settingsOpen=false;
+  let overtime=false, overtimeSeconds=0;
+  const OVERTIME_MAX = 5*60;
 
   const display     = document.getElementById('display');
   const progress    = document.getElementById('progress');
@@ -371,10 +397,23 @@
   }
 
   function setStatus(state) {
-    const labels = { idle:'Listos para grabar', running:'Grabando', paused:'Pausado', done:'Tiempo agotado' };
-    statusText.textContent = labels[state];
-    statusText.className   = state==='running' ? 'running' : state==='paused' ? 'paused' : '';
-    dot.className          = 'dot'+(state==='running' ? ' running' : state==='paused' ? ' paused' : '');
+    const labels = {
+      idle:  'Listos para grabar',
+      running:'Grabando',
+      paused: 'Pausado',
+      done:   'Tiempo agotado',
+      wrap:   'Despedir programa'
+    };
+    statusText.textContent = labels[state] || state;
+    statusText.className   = state==='running' ? 'running'
+                           : state==='paused'  ? 'paused'
+                           : state==='wrap'    ? 'wrap'
+                           : '';
+    dot.className = 'dot'
+      + (state==='running' ? ' running'
+       : state==='paused'  ? ' paused'
+       : state==='wrap'    ? ' wrap-dot'
+       : '');
   }
 
   function updateDisplay() {
@@ -393,14 +432,43 @@
       alertBanner.style.display='none';
     }
 
-    if (remaining===0) {
-      clearInterval(interval); interval=null; running=false;
-      btnStart.textContent='Iniciar'; btnStart.classList.add('primary');
-      setStatus('done'); progress.style.width='100%';
+    if (remaining===0 && !overtime) {
+      startOvertime();
     }
   }
 
+  function startOvertime() {
+    overtime = true;
+    overtimeSeconds = 0;
+    running = false;
+    progress.style.width = '100%';
+    progress.style.background = '#E24B4A';
+    progress.classList.add('blink-bar');
+    display.classList.remove('danger');
+    display.classList.add('blink-clock');
+    alertBanner.style.display = 'none';
+    setStatus('wrap');
+    btnStart.textContent = 'Iniciar';
+    btnStart.classList.add('primary');
+    clearInterval(interval);
+    interval = setInterval(() => {
+      overtimeSeconds++;
+      display.textContent = '-' + fmt(overtimeSeconds);
+      if (overtimeSeconds >= OVERTIME_MAX) {
+        clearInterval(interval); interval = null;
+      }
+    }, 1000);
+  }
+
+  function clearOvertime() {
+    overtime = false; overtimeSeconds = 0;
+    progress.classList.remove('blink-bar');
+    display.classList.remove('blink-clock');
+    progress.style.background = 'var(--green)';
+  }
+
   function toggleTimer() {
+    if (overtime) return; // don't restart during overtime
     if (running) {
       clearInterval(interval); interval=null; running=false;
       btnStart.textContent='Continuar'; btnStart.classList.add('primary');
@@ -410,12 +478,12 @@
       running=true;
       btnStart.textContent='Pausar'; btnStart.classList.remove('primary');
       setStatus('running');
-      interval=setInterval(()=>{ if(remaining>0){remaining--;updateDisplay();} },1000);
+      interval=setInterval(()=>{ if(remaining>0){remaining--;updateDisplay();} else { updateDisplay(); } },1000);
     }
   }
 
   function pauseTimer() {
-    if (!running) return;
+    if (!running || overtime) return;
     clearInterval(interval); interval=null; running=false;
     btnStart.textContent='Continuar'; btnStart.classList.add('primary');
     setStatus('paused');
@@ -423,9 +491,10 @@
 
   function resetTimer() {
     clearInterval(interval); interval=null; running=false;
+    clearOvertime();
     const mins=parseInt(durInput.value)||30;
     totalSeconds=mins*60; remaining=totalSeconds; warned=false;
-    display.classList.remove('danger');
+    display.classList.remove('danger','blink-clock');
     progress.style.background='var(--green)'; progress.style.width='0%';
     btnStart.textContent='Iniciar'; btnStart.classList.add('primary');
     setStatus('idle'); alertBanner.style.display='none'; updateDisplay();
@@ -435,8 +504,9 @@
     durInput.value=mins;
     document.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',parseInt(b.textContent)===mins));
     if (!running) {
+      clearOvertime();
       totalSeconds=mins*60; remaining=totalSeconds; warned=false;
-      display.classList.remove('danger');
+      display.classList.remove('danger','blink-clock');
       progress.style.background='var(--green)'; progress.style.width='0%';
       alertBanner.style.display='none'; updateDisplay();
     }
@@ -448,17 +518,43 @@
     arrow.classList.toggle('open',settingsOpen);
   }
 
+  updateDisplay();
+
   durInput.addEventListener('change',()=>{
     if (!running) {
       const mins=parseInt(durInput.value)||30;
       totalSeconds=mins*60; remaining=totalSeconds; warned=false;
+      clearOvertime();
       progress.style.width='0%'; alertBanner.style.display='none';
       document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
       updateDisplay();
     }
   });
 
-  updateDisplay();
+  // ── SCRUBBER ──
+  const track = document.querySelector('.progress-track');
+  let scrubbing = false;
+
+  function scrubTo(clientX) {
+    if (overtime) return;
+    const rect = track.getBoundingClientRect();
+    let pct = (clientX - rect.left) / rect.width;
+    pct = Math.max(0, Math.min(1, pct));
+    remaining = Math.round(totalSeconds * (1 - pct));
+    if (remaining > 60) { alertBanner.style.display='none'; warned=false; }
+    progress.classList.add('scrubbing');
+    updateDisplay();
+  }
+
+  function stopScrub() { scrubbing=false; progress.classList.remove('scrubbing'); }
+
+  track.addEventListener('mousedown', e => { scrubbing=true; scrubTo(e.clientX); });
+  document.addEventListener('mousemove', e => { if(scrubbing) scrubTo(e.clientX); });
+  document.addEventListener('mouseup', stopScrub);
+
+  track.addEventListener('touchstart', e => { scrubbing=true; scrubTo(e.touches[0].clientX); e.preventDefault(); }, {passive:false});
+  document.addEventListener('touchmove', e => { if(scrubbing){ scrubTo(e.touches[0].clientX); e.preventDefault(); } }, {passive:false});
+  document.addEventListener('touchend', stopScrub);
 </script>
 </body>
 </html>
